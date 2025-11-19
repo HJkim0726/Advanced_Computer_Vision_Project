@@ -144,6 +144,7 @@ model = dict(
     type='BEVFormer',
     use_grid_mask=True,
     video_test_mode=True,
+    pretrained=dict(img='ckpts/resnet50-19c8e357.pth'),
     img_backbone=dict(
         type='ResNet',
         depth=50,
@@ -186,10 +187,10 @@ model = dict(
                 transformerlayers=dict(
                     type='BEVFormerLayer',
                     attn_cfgs=[
-                        dict(
-                            type='TemporalSelfAttention',
-                            embed_dims=_dim_,
-                            num_levels=1),
+                        # dict(
+                        #     type='TemporalSelfAttention',
+                        #     embed_dims=_dim_,
+                        #     num_levels=1),
                         dict(
                             type='SpatialCrossAttention',
                             pc_range=point_cloud_range,
@@ -203,7 +204,7 @@ model = dict(
                     ],
                     feedforward_channels=_ffn_dim_,
                     ffn_dropout=0.0,
-                    operation_order=('self_attn', 'norm', 'cross_attn', 'norm',
+                    operation_order=('temporal_se', 'norm', 'cross_attn', 'norm',
                                      'ffn', 'norm'))),
             decoder=dict(
                 type='DetectionTransformerDecoder',
@@ -301,7 +302,7 @@ test_pipeline = [
 
 data = dict(
     samples_per_gpu=1,
-    workers_per_gpu=6,
+    workers_per_gpu=1,
     train=dict(
         type=dataset_type,
         data_root=data_root,
@@ -351,7 +352,7 @@ lr_config = dict(
     warmup_iters=500,
     warmup_ratio=1.0 / 3,
     min_lr_ratio=1e-3)
-total_epochs = 1
+total_epochs = 3
 evaluation = dict(interval=1, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
@@ -359,7 +360,8 @@ log_config = dict(
     interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
-        dict(type='TensorboardLoggerHook')
+        # dict(type='TensorboardLoggerHook'),
+        dict(type='WandbLoggerHook', token='4cc3c410dfb6a5a3a0d0633e2d5a33ee1905749a', init_kwargs=dict(name='temporal_se', project='bevformer'))
     ])
 
 checkpoint_config = dict(interval=3000, by_epoch=False)

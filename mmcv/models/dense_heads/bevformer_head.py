@@ -156,6 +156,8 @@ class BEVFormerHead(DETRHead):
                 prev_bev=prev_bev,
             )
         else:
+            starter = torch.cuda.Event(enable_timing=True)
+            starter.record()
             outputs = self.transformer(
                 mlvl_feats,
                 bev_queries,
@@ -169,7 +171,11 @@ class BEVFormerHead(DETRHead):
                 cls_branches=self.cls_branches if self.as_two_stage else None,
                 img_metas=img_metas,
                 prev_bev=prev_bev
-        )
+            )
+            ender = torch.cuda.Event(enable_timing=True)
+            ender.record()
+            torch.cuda.synchronize()
+            # print('Transformer time:', starter.elapsed_time(ender))
 
         bev_embed, hs, init_reference, inter_references = outputs
         hs = hs.permute(0, 2, 1, 3)

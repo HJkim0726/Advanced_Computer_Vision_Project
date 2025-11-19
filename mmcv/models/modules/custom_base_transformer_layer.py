@@ -85,22 +85,22 @@ class MyCustomBaseTransformerLayer(BaseModule):
 
         self.batch_first = batch_first
 
-        assert set(operation_order) & set(
-            ['self_attn', 'norm', 'ffn', 'cross_attn']) == \
-            set(operation_order), f'The operation_order of' \
-            f' {self.__class__.__name__} should ' \
-            f'contains all four operation type ' \
-            f"{['self_attn', 'norm', 'ffn', 'cross_attn']}"
+        # assert set(operation_order) & set(
+        #     ['self_attn', 'norm', 'ffn', 'cross_attn']) == \
+        #     set(operation_order), f'The operation_order of' \
+        #     f' {self.__class__.__name__} should ' \
+        #     f'contains all four operation type ' \
+        #     f"{['self_attn', 'norm', 'ffn', 'cross_attn']}"
 
         num_attn = operation_order.count('self_attn') + operation_order.count(
             'cross_attn')
         if isinstance(attn_cfgs, dict):
             attn_cfgs = [copy.deepcopy(attn_cfgs) for _ in range(num_attn)]
-        else:
-            assert num_attn == len(attn_cfgs), f'The length ' \
-                f'of attn_cfg {num_attn} is ' \
-                f'not consistent with the number of attention' \
-                f'in operation_order {operation_order}.'
+        # else:
+        #     assert num_attn == len(attn_cfgs), f'The length ' \
+        #         f'of attn_cfg {num_attn} is ' \
+        #         f'not consistent with the number of attention' \
+        #         f'in operation_order {operation_order}.'
 
         self.num_attn = num_attn
         self.operation_order = operation_order

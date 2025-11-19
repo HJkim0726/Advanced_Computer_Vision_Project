@@ -281,7 +281,11 @@ class BEVFormerLayer(MyCustomBaseTransformerLayer):
         self.fp16_enabled = False
         assert len(operation_order) == 6
         assert set(operation_order) == set(
-            ['self_attn', 'norm', 'cross_attn', 'ffn'])
+            ['self_attn', 'norm', 'cross_attn', 'ffn']) or set(operation_order) == set(
+            ['norm', 'cross_attn', 'ffn', 'temporal_se'])
+            
+        self.temporal_se = TemporalSE(channels=256, reduction=16)
+        self.dim_reduction = torch.nn.Linear(256*2, 256)
 
     def forward(self,
                 query,
@@ -355,7 +359,8 @@ class BEVFormerLayer(MyCustomBaseTransformerLayer):
         for layer in self.operation_order:
             # temporal self attention
             if layer == 'self_attn':
-
+                starter = torch.cuda.Event(enable_timing=True)
+                starter.record()
                 query = self.attentions[attn_index](
                     query,
                     prev_bev,
@@ -370,8 +375,33 @@ class BEVFormerLayer(MyCustomBaseTransformerLayer):
                         [[bev_h, bev_w]], device=query.device),
                     level_start_index=torch.tensor([0], device=query.device),
                     **kwargs)
+                
                 attn_index += 1
                 identity = query
+                
+                ender = torch.cuda.Event(enable_timing=True)
+                ender.record()
+                torch.cuda.synchronize()
+                print('TSA time:', starter.elapsed_time(ender))
+            
+            elif layer == 'temporal_se':
+                starter = torch.cuda.Event(enable_timing=True)
+                starter.record()
+                stacked_query = torch.cat([prev_bev[0].unsqueeze(0).unsqueeze(0), query.unsqueeze(0)], 1) if prev_bev is not None else torch.stack([query, query], 1)
+                    
+                bs, num_queue, num_query, dim = stacked_query.shape
+                stacked_query = stacked_query.reshape(bs, num_queue, bev_h, bev_w, dim).permute(0,1,4,2,3)  # (B,T,C,H,W)
+                query = self.temporal_se(stacked_query) # (B,T,C,H,W)
+                query = query.permute(0,3,4,2,1).reshape(bs, bev_h*bev_w, 2*256) # (B,H*W, T*C)
+                query = self.dim_reduction(query)
+
+                # attn_index += 1
+                identity = query
+                ender = torch.cuda.Event(enable_timing=True)
+                ender.record()
+                torch.cuda.synchronize()
+                # print('TSA time:', starter.elapsed_time(ender))
+            
 
             elif layer == 'norm':
                 query = self.norms[norm_index](query)
@@ -403,3 +433,36 @@ class BEVFormerLayer(MyCustomBaseTransformerLayer):
                 ffn_index += 1
 
         return query
+
+
+
+
+class TemporalSE(torch.nn.Module):
+    """
+    Temporal Squeeze-and-Excitation Module
+    입력: (B, T, C, H, W)  (예: T=2, 과거+현재)
+    출력: (B, T, C, H, W)
+    """
+    def __init__(self, channels, reduction=16):
+        super().__init__()
+        self.avg_pool = torch.nn.AdaptiveAvgPool3d((None, 1, 1))  # (B,C,T,H,W) -> (B,C,T,1,1)
+        self.fc = torch.nn.Sequential(
+            torch.nn.Conv1d(channels, channels // reduction, kernel_size=1),
+            torch.nn.ReLU(inplace=True),
+            torch.nn.Conv1d(channels // reduction, channels, kernel_size=1),
+            torch.nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        # x: (B,T,C,H,W)
+        B, T, C, H, W = x.shape
+        x_perm = x.permute(0, 2, 1, 3, 4)      # (B,C,T,H,W)
+
+        y = self.avg_pool(x_perm)              # (B,C,T,1,1)
+        y = y.squeeze(-1).squeeze(-1)          # (B,C,T)
+        y = self.fc(y)                         # (B,C,T)
+        y = y.unsqueeze(-1).unsqueeze(-1)      # (B,C,T,1,1)
+
+        out = x_perm * y                       # (B,C,T,H,W)
+        return out.permute(0, 2, 1, 3, 4)      # (B,T,C,H,W)
+

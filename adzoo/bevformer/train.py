@@ -26,6 +26,7 @@ from mmcv.utils import set_random_seed
 from mmcv.utils import TORCH_VERSION, digit_version
 from adzoo.bevformer.mmdet3d_plugin.bevformer.apis.train import custom_train_model
 
+import wandb
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
@@ -223,6 +224,8 @@ def main():
             if hasattr(datasets[0], 'PALETTE') else None)
     # add an attribute for visualization convenience
     model.CLASSES = datasets[0].CLASSES
+
+    
     custom_train_model(
         model,
         datasets,

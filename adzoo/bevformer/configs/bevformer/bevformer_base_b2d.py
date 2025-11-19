@@ -267,9 +267,9 @@ dataset_type = "B2D_Dataset"
 data_root = "data/bench2drive"
 info_root = "data/infos"
 file_client_args = dict(backend="disk")
-ann_file_train=info_root + f"/b2d_infos_train.pkl"
-ann_file_val=info_root + f"/b2d_infos_val.pkl"
-ann_file_test=info_root + f"/b2d_infos_val.pkl"
+ann_file_train=info_root + f"/b2d_infos_val_town03.pkl"
+ann_file_val=info_root + f"/b2d_infos_val_town03.pkl"
+ann_file_test=info_root + f"/b2d_infos_val_town03.pkl"
 
 
 train_pipeline = [
@@ -304,7 +304,7 @@ test_pipeline = [
 
 data = dict(
     samples_per_gpu=1,
-    workers_per_gpu=6,
+    workers_per_gpu=1,
     train=dict(
         type=dataset_type,
         data_root=data_root,
